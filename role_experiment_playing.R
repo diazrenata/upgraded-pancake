@@ -1,0 +1,124 @@
+library(roleR)
+library(ggplot2)
+library(dplyr)
+set.seed(1988) #jbp
+### Setting up a roleExperiment
+
+#### Replicates of the same parameter settings
+
+params1 <- untbParams(individuals_local = 100, individuals_meta = 1000, 
+                      species_meta = 50, 
+                      speciation = 0.2, 
+                      dispersal_prob = 0.1, init_type = 'oceanic_island',
+                      niter = 10000, niterTimestep = 100) 
+
+paramsList1 <- list(a= params1, b= params1, c=params1, d= params1, e=params1)
+
+trial1 <- roleExperiment(paramsList1)
+
+results1 <- runRole(trial1)
+
+results1@modelRuns[[1]]@modelSteps[[10]]@localComm@indSpecies
+
+sumStats1 <- getSumStats(results1, funs =  list(rich = richness,
+                                                hill_abund= hillAbund,
+                                                abund = totalN))
+
+
+ggplot(sumStats1, aes(iteration, hill_abund_1, group = run_num, color = run_num)) +
+    geom_point() +
+    geom_line()
+
+#### This is beautiful ^^^^
+
+
+#### With different param settings
+
+
+params2 <- roleParams(individuals_local = 100, individuals_meta = 1000, 
+                      niter = 10000, niterTimestep = 100, neut_delta = 0, comp_sigma = .05) 
+
+paramsList2 <- list(params1, params1, params1, params1, params1, params2, params2, params2, params2, params2)
+
+trial2 <- roleExperiment(paramsList2)
+
+results2 <- runRole(trial2)
+
+results2@modelRuns[[1]]@modelSteps[[10]]@localComm@indSpecies
+
+sumStats2 <- getSumStats(results2, funs =  list(rich = richness,
+                                                hill_abund= hillAbund,
+                                                abund = totalN))
+
+
+ggplot(sumStats2, aes(iteration, hill_abund_1, group = run_num, color = run_num <= 5)) +
+    geom_point() +
+    geom_line()
+
+
+
+ggplot(sumStats2, aes(iteration, rich, group = run_num, color = run_num <= 5)) +
+    geom_point() +
+    geom_line()
+
+
+# ggplot(sumStats2, aes(rich, abund, color = run_num <= 5)) +
+#     geom_point() +
+#     ylim(0, 150)
+
+### Rough argument for equilib.
+
+
+
+ggplot(sumStats2, aes(iteration, hill_abund_1, group = run_num, color = run_num <= 5)) +
+    geom_point() +
+    geom_line() +
+    geom_vline(xintercept = 8000)
+
+sumStats2_equilib_mean <- sumStats2 %>%
+    filter(iteration >8000) %>%
+    group_by(run_num) %>%
+    summarize_at(vars(rich, abund, hill_abund_1), .funs = mean)
+
+ggplot(sumStats2_equilib_mean, aes(rich, abund, color = run_num <= 5)) +
+    geom_point() +
+    ylim(0, 150)
+
+
+#### Ok, for the win, let's try iter functions
+
+params3 <-  roleParams(individuals_local = 100, individuals_meta = 1000, 
+                          niter = 10000, niterTimestep = 100, neut_delta = 0, 
+                       comp_sigma = .05, dispersal_prob = function(iter){return(ifelse(iter < 5000, .05, .25))}) 
+
+
+
+paramsList3 <- list(params1, params1, params1, params1, params1, params2, params2, params2, params2, params2,
+                    params3, params3, params3, params3, params3)
+
+trial3 <- roleExperiment(paramsList3)
+
+results3 <- runRole(trial3)
+
+results3@modelRuns[[1]]@modelSteps[[10]]@localComm@indSpecies
+
+sumStats3 <- getSumStats(results3, funs =  list(rich = richness,
+                                                hill_abund= hillAbund,
+                                                abund = totalN)) %>%
+    mutate(mod_type = ifelse(run_num %in% c(1:5), "neut", ifelse(run_num %in% 6:10, "comp", "comp_change")))
+
+
+ggplot(sumStats3, aes(iteration, hill_abund_1, group = run_num, color =mod_type)) +
+    geom_point() +
+    geom_line()
+
+
+### comp error
+
+
+
+params3 <-  roleParams(individuals_local = 100, individuals_meta = 1000, 
+                       niter = 10000, niterTimestep = 100, neut_delta = 0, 
+                       comp_sigma = function(iter){return(ifelse(iter < 5000, .05, .1))}) 
+
+
